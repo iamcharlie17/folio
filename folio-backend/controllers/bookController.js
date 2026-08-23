@@ -259,6 +259,7 @@ export const getProgress = async (req, res, next) => {
         currentPage:        book.currentPage,
         totalPages:         book.totalPages,
         completionPercent:  book.completionPercent,
+        completionPercent: book.completionPercent,
         avgPagesPerDay,
         estimatedFinishDate,
       },

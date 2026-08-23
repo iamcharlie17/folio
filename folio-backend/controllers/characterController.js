@@ -30,6 +30,7 @@ const getCharacters = async (req, res, next) => {
         name:   c.name,
         role:   c.role,
         traits: c.traits,
+        relationships: c.relationships,
       })),
     });
   } catch (err) { next(err); }

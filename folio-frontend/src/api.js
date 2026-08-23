@@ -51,8 +51,13 @@ export function getCurrentUser() {
 
 // ===== Books =====
 
-export function getBooks() {
-  return request("/books", "GET");
+export function getBooks(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  const query = params.toString();
+  return request("/books" + (query ? "?" + query : ""), "GET");
 }
 
 export function getBook(bookId) {
@@ -61,6 +66,10 @@ export function getBook(bookId) {
 
 export function createBook(book) {
   return request("/books", "POST", book);
+}
+
+export function updateBook(bookId, book) {
+  return request("/books/" + bookId, "PUT", book);
 }
 
 export function deleteBook(bookId) {
@@ -81,6 +90,28 @@ export function deleteQuote(quoteId) {
   return request("/quotes/" + quoteId, "DELETE");
 }
 
+export function updateQuote(quoteId, quote) {
+  return request("/quotes/" + quoteId, "PUT", quote);
+}
+
+// ===== Notes =====
+
+export function getNotes(bookId) {
+  return request("/books/" + bookId + "/notes", "GET");
+}
+
+export function createNote(bookId, note) {
+  return request("/books/" + bookId + "/notes", "POST", note);
+}
+
+export function updateNote(noteId, note) {
+  return request("/notes/" + noteId, "PUT", note);
+}
+
+export function deleteNote(noteId) {
+  return request("/notes/" + noteId, "DELETE");
+}
+
 // ===== Characters =====
 
 export function getCharacters(bookId) {
@@ -93,4 +124,52 @@ export function createCharacter(bookId, character) {
 
 export function deleteCharacter(characterId) {
   return request("/characters/" + characterId, "DELETE");
+}
+
+export function updateCharacter(characterId, character) {
+  return request("/characters/" + characterId, "PUT", character);
+}
+
+// ===== Tags, links, progress, and search =====
+
+export function getTags() {
+  return request("/tags", "GET");
+}
+
+export function createTag(tag) {
+  return request("/tags", "POST", tag);
+}
+
+export function getTagItems(tagId) {
+  return request("/tags/" + tagId + "/items", "GET");
+}
+
+export function deleteTag(tagId) {
+  return request("/tags/" + tagId, "DELETE");
+}
+
+export function createLink(link) {
+  return request("/links", "POST", link);
+}
+
+export function getLinks(itemId) {
+  return request("/links?itemId=" + encodeURIComponent(itemId), "GET");
+}
+
+export function deleteLink(linkId) {
+  return request("/links/" + linkId, "DELETE");
+}
+
+export function updateProgress(bookId, currentPage) {
+  return request("/books/" + bookId + "/progress", "PUT", { currentPage });
+}
+
+export function getProgress(bookId) {
+  return request("/books/" + bookId + "/progress", "GET");
+}
+
+export function searchLibrary(query, bookId) {
+  const params = new URLSearchParams({ q: query });
+  if (bookId) params.set("bookId", bookId);
+  return request("/search?" + params.toString(), "GET");
 }
