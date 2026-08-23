@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 
 import errorHandler from './middleware/errorHandler.js';
 import authRoutes      from './routes/authRoutes.js';
@@ -12,6 +13,9 @@ import linkRoutes      from './routes/linkRoutes.js';
 import searchRoutes    from './routes/searchRoutes.js';
 
 const app = express();
+
+// Allow the frontend (running on a different port) to call this API
+app.use(cors());
 
 // Body parser
 app.use(express.json());
