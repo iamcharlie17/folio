@@ -44,6 +44,7 @@ export const getBooks = async (req, res, next) => {
         title:             b.title,
         author:            b.author,
         genre:             b.genre,
+        coverImage:        b.coverImage,
         status:            b.status,
         totalPages:        b.totalPages,
         currentPage:       b.currentPage,
