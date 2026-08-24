@@ -110,6 +110,7 @@ export const getBook = async (req, res, next) => {
         coverImage:      book.coverImage,
         totalPages:      book.totalPages,
         currentPage:     book.currentPage,
+        completionPercent: book.completionPercent,
         status:          book.status,
         notesCount,
         quotesCount,
@@ -130,6 +131,13 @@ export const updateBook = async (req, res, next) => {
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) book[field] = req.body[field];
     });
+
+    if (book.totalPages && Number(book.currentPage) > Number(book.totalPages)) {
+      return res.status(400).json({
+        success: false,
+        message: `currentPage (${book.currentPage}) cannot exceed totalPages (${book.totalPages})`,
+      });
+    }
 
     await book.save();
 

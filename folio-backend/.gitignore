@@ -26,6 +26,9 @@ Thumbs.db
 dist/
 build/
 
+# Test coverage
+coverage/
+
 # Temporary files
 tmp/
 temp/

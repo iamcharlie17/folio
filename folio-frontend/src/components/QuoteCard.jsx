@@ -1,11 +1,16 @@
 // Shows one saved quote.
+import ItemId from "./ItemId";
+
 function QuoteCard({ quote, onDelete, onEdit }) {
   return (
     <div className="card">
       <div className="item-header">
-        <div className="item-meta">
-          {quote.chapter ? quote.chapter + " · " : ""}
-          {quote.page ? "page " + quote.page : ""}
+        <div>
+          <div className="item-meta">
+            {quote.chapter ? quote.chapter + " · " : ""}
+            {quote.page ? "page " + quote.page : ""}
+          </div>
+          <ItemId id={quote._id} />
         </div>
         <div className="item-actions">
           {onEdit && <button className="edit-link" onClick={() => onEdit(quote)}>Edit</button>}

@@ -156,6 +156,10 @@ export function getLinks(itemId) {
   return request("/links?itemId=" + encodeURIComponent(itemId), "GET");
 }
 
+export function getLinksByBook(bookId) {
+  return request("/links?bookId=" + encodeURIComponent(bookId), "GET");
+}
+
 export function deleteLink(linkId) {
   return request("/links/" + linkId, "DELETE");
 }

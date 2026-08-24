@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import QuoteCard from "../components/QuoteCard";
 import CharacterCard from "../components/CharacterCard";
+import ItemId from "../components/ItemId";
 import {
   getBook,
   getQuotes,
@@ -20,9 +21,27 @@ import {
   updateProgress,
   getProgress,
   createLink,
-  getLinks,
+  getLinksByBook,
   deleteLink,
 } from "../api";
+
+function LinkEndpoint({ item }) {
+  const meta = [
+    item.book,
+    item.author,
+    item.page != null ? "page " + item.page : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="link-endpoint">
+      <span className="link-endpoint-type">{item.type}</span>
+      <p className="link-endpoint-content">{item.topic || item.text}</p>
+      {meta && <span className="link-endpoint-meta">{meta}</span>}
+    </div>
+  );
+}
 
 function BookPage() {
   const { bookId } = useParams();
@@ -42,6 +61,7 @@ function BookPage() {
   const [linkTargetType, setLinkTargetType] = useState("quote");
   const [linkTargetId, setLinkTargetId] = useState("");
   const [linkNote, setLinkNote] = useState("");
+  const [showLinks, setShowLinks] = useState(false);
 
   // Quote form fields
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -120,8 +140,13 @@ function BookPage() {
   }
 
   async function loadLinks() {
-    if (!linkSourceId) return setLinks([]);
-    try { const data = await getLinks(linkSourceId); setLinks(data.links); } catch (err) { setError(err.message); }
+    try { const data = await getLinksByBook(bookId); setLinks(data.links); } catch (err) { setError(err.message); }
+  }
+
+  function handleToggleLinks() {
+    const next = !showLinks;
+    setShowLinks(next);
+    if (next) loadLinks();
   }
 
   async function handleCreateLink(event) {
@@ -316,14 +341,23 @@ function BookPage() {
 
             {book.totalPages > 0 && (
               <>
-                <div className="progress-track">
-                  <div
-                    className="progress-fill"
-                    style={{ width: book.completionPercent + "%" }}
-                  ></div>
+                <div
+                  className="progress-row"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={book.completionPercent}
+                >
+                  <div className="progress-track">
+                    <div
+                      className="progress-fill"
+                      style={{ width: book.completionPercent + "%" }}
+                    ></div>
+                  </div>
+                  <span className="progress-percent">{book.completionPercent}%</span>
                 </div>
                 <p style={{ fontSize: "0.85rem", color: "var(--ink-soft)", marginTop: 6 }}>
-                  Page {book.currentPage} of {book.totalPages} ({book.completionPercent}%)
+                  Page {book.currentPage} of {book.totalPages} read
                 </p>
               </>
             )}
@@ -373,7 +407,6 @@ function BookPage() {
             </div>
             <button className="btn btn-solid" type="submit">Log progress</button>
           </form>
-          {progress?.avgPagesPerDay && <p className="item-meta">Average: {progress.avgPagesPerDay} pages per day</p>}
         </div>
 
         <div className="card link-panel">
@@ -384,16 +417,30 @@ function BookPage() {
             <input placeholder="Source item ID" value={linkSourceId} onChange={(e) => setLinkSourceId(e.target.value)} required />
             <select value={linkTargetType} onChange={(e) => setLinkTargetType(e.target.value)}><option value="note">Target note</option><option value="quote">Target quote</option></select>
             <input placeholder="Target item ID" value={linkTargetId} onChange={(e) => setLinkTargetId(e.target.value)} required />
-            <input placeholder="Why are they connected?" value={linkNote} onChange={(e) => setLinkNote(e.target.value)} />
+            <input className="link-note" placeholder="Why are they connected?" value={linkNote} onChange={(e) => setLinkNote(e.target.value)} />
             <button className="btn btn-solid" type="submit">Link ideas</button>
+            <button className="btn btn-outline" type="button" onClick={handleToggleLinks}>
+              {showLinks ? "Hide book links" : "Show book links"}
+            </button>
           </form>
-          <button className="btn btn-outline" onClick={loadLinks} disabled={!linkSourceId}>Show source links</button>
-          {links.map((link) => <div className="link-row" key={link._id}><span>{link.target.type}: {link.target.topic || link.target.text} {link.target.book ? "(" + link.target.book + ")" : ""}</span><button className="delete-link" onClick={() => handleDeleteLink(link._id)}>Remove</button></div>)}
+          {showLinks && links.map((link) => (
+            <div className="link-row" key={link._id}>
+              <div className="link-row-info">
+                <div className="link-endpoints">
+                  <LinkEndpoint item={link.source} />
+                  <span className="link-arrow">{link.direction === "incoming" ? "←" : "→"}</span>
+                  <LinkEndpoint item={link.target} />
+                </div>
+                {link.note && <p className="link-why">Why: {link.note}</p>}
+              </div>
+              <button className="delete-link" onClick={() => handleDeleteLink(link._id)}>Remove</button>
+            </div>
+          ))}
         </div>
 
         {activeTab === "notes" && (
           <div>
-            <button className="btn btn-outline" style={{ marginBottom: 20 }} onClick={() => setShowNoteForm(!showNoteForm)}>
+            <button className="btn btn-outline add-toggle" onClick={() => setShowNoteForm(!showNoteForm)}>
               {showNoteForm ? "Cancel" : "+ Add note"}
             </button>
             {showNoteForm && <div className="card" style={{ marginBottom: 24 }}>
@@ -405,7 +452,7 @@ function BookPage() {
             </div>}
             {notes.length === 0 && <div className="empty-state">No notes added yet.</div>}
             {notes.map((note) => <div className="card" key={note._id}>
-              <div className="item-header"><div><h3>{note.topic}</h3><div className="item-meta">{new Date(note.createdAt).toLocaleDateString()}</div></div>
+              <div className="item-header"><div><h3>{note.topic}</h3><div className="item-meta">{new Date(note.createdAt).toLocaleDateString()}</div><ItemId id={note._id} /></div>
                 <div className="item-actions"><button className="edit-link" onClick={() => startNoteEdit(note)}>Edit</button><button className="delete-link" onClick={() => handleDeleteNote(note._id)}>Delete</button></div></div>
               <p>{note.content}</p>
             </div>)}
@@ -415,8 +462,7 @@ function BookPage() {
         {activeTab === "quotes" && (
           <div>
             <button
-              className="btn btn-outline"
-              style={{ marginBottom: 20 }}
+              className="btn btn-outline add-toggle"
               onClick={() => setShowQuoteForm(!showQuoteForm)}
             >
               {showQuoteForm ? "Cancel" : "+ Save a quote"}
@@ -484,8 +530,7 @@ function BookPage() {
         {activeTab === "characters" && (
           <div>
             <button
-              className="btn btn-outline"
-              style={{ marginBottom: 20 }}
+              className="btn btn-outline add-toggle"
               onClick={() => setShowCharacterForm(!showCharacterForm)}
             >
               {showCharacterForm ? "Cancel" : "+ Add character"}

@@ -5,8 +5,8 @@ import Book      from '../models/Book.js';
 import mongoose  from 'mongoose';
 
 /**
- * Fetch an item (note or quote) and its associated book title.
- * Returns { item, bookTitle } or null if not found.
+ * Fetch an item (note or quote) and its associated book title/author.
+ * Returns { item, bookTitle, bookAuthor } or null if not found.
  */
 const resolveItem = async (type, id) => {
   let item, bookId;
@@ -19,7 +19,11 @@ const resolveItem = async (type, id) => {
   }
   if (!item) return null;
   const book = await Book.findById(bookId);
-  return { item, bookTitle: book?.title || null };
+  return {
+    item,
+    bookTitle:  book?.title || null,
+    bookAuthor: book?.author || null,
+  };
 };
 
 // POST /links
@@ -84,42 +88,77 @@ const createLink = async (req, res, next) => {
   }
 };
 
-// GET /links?itemId=xxx
+// GET /links?itemId=xxx  → links touching one specific item
+// GET /links?bookId=xxx  → links touching any note/quote of a book
 const getLinks = async (req, res, next) => {
   try {
-    const { itemId } = req.query;
-    if (!itemId) return res.status(400).json({ success: false, message: 'itemId query param is required' });
+    const { itemId, bookId } = req.query;
+    if (!itemId && !bookId) {
+      return res.status(400).json({ success: false, message: 'itemId or bookId query param is required' });
+    }
 
-    const objectId = new mongoose.Types.ObjectId(itemId);
+    const filter = { user: req.user._id };
+    let anchoredId = null;
 
-    // Find links where itemId is either source or target
-    const links = await Link.find({
-      user: req.user._id,
-      $or: [{ sourceId: objectId }, { targetId: objectId }],
+    if (itemId) {
+      anchoredId = new mongoose.Types.ObjectId(itemId);
+      filter.$or = [{ sourceId: anchoredId }, { targetId: anchoredId }];
+    } else {
+      const ownedBook = await Book.findOne({
+        _id: new mongoose.Types.ObjectId(bookId),
+        user: req.user._id,
+      });
+      if (!ownedBook) return res.status(404).json({ success: false, message: 'Book not found' });
+
+      const [noteIds, quoteIds] = await Promise.all([
+        Note.find({ book: ownedBook._id, user: req.user._id }).distinct('_id'),
+        Quote.find({ book: ownedBook._id, user: req.user._id }).distinct('_id'),
+      ]);
+
+      const conditions = [];
+      if (noteIds.length) {
+        conditions.push({ sourceType: 'note', sourceId: { $in: noteIds } });
+        conditions.push({ targetType: 'note', targetId: { $in: noteIds } });
+      }
+      if (quoteIds.length) {
+        conditions.push({ sourceType: 'quote', sourceId: { $in: quoteIds } });
+        conditions.push({ targetType: 'quote', targetId: { $in: quoteIds } });
+      }
+      if (!conditions.length) {
+        return res.status(200).json({ success: true, count: 0, links: [] });
+      }
+      filter.$or = conditions;
+    }
+
+    const links = await Link.find(filter);
+
+    // For each link, resolve both sides with full metadata
+    const describe = (type, id, resolved) => ({
+      type,
+      id,
+      ...(type === 'note'
+        ? { topic: resolved?.item?.topic ?? null }
+        : { text: resolved?.item?.text ?? null, page: resolved?.item?.page ?? null }),
+      book:   resolved?.bookTitle || null,
+      author: resolved?.bookAuthor || null,
     });
 
-    // For each link, resolve the "other side" relative to the queried item
     const enriched = await Promise.all(
       links.map(async (link) => {
-        const isSource = link.sourceId.toString() === itemId;
-        const otherType = isSource ? link.targetType : link.sourceType;
-        const otherId   = isSource ? link.targetId   : link.sourceId;
-        const resolved  = await resolveItem(otherType, otherId);
-
-        const otherInfo = {
-          type: otherType,
-          id:   otherId,
-          book: resolved?.bookTitle || null,
-          // include topic (note) or text (quote) if available
-          ...(otherType === 'note'
-            ? { topic: resolved?.item?.topic }
-            : { text:  resolved?.item?.text }),
-        };
+        const [sourceResolved, targetResolved] = await Promise.all([
+          resolveItem(link.sourceType, link.sourceId),
+          resolveItem(link.targetType, link.targetId),
+        ]);
 
         return {
-          _id:    link._id,
-          target: otherInfo,
-          note:   link.note,
+          _id:       link._id,
+          ...(anchoredId
+            ? { direction: link.sourceId.toString() === anchoredId.toString() ? 'outgoing' : 'incoming' }
+            : {}),
+          source:    describe(link.sourceType, link.sourceId, sourceResolved),
+          target:    describe(link.targetType, link.targetId, targetResolved),
+          note:      link.note,
+          createdAt: link.createdAt,
         };
       })
     );
