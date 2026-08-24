@@ -2,6 +2,9 @@ import Note      from '../models/Note.js';
 import Quote     from '../models/Quote.js';
 import Character from '../models/Character.js';
 
+// Escape regex metacharacters so the query is matched literally.
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // GET /search?q=keyword[&bookId=xxx]
 const search = async (req, res, next) => {
   try {
@@ -11,20 +14,21 @@ const search = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'q (search query) is required' });
     }
 
+    // Case-insensitive substring match on the same fields the old text indexes covered.
+    const rx = new RegExp(escapeRegExp(q.trim()), 'i');
+
     // Base filter — always scoped to the logged-in user
     const baseFilter = { user: req.user._id };
     if (bookId) baseFilter.book = bookId;
 
-    const textFilter = { ...baseFilter, $text: { $search: q } };
-
     const [notes, quotes, characters] = await Promise.all([
-      Note.find(textFilter)
+      Note.find({ ...baseFilter, $or: [{ topic: rx }, { content: rx }] })
         .populate('book', 'title')
         .select('topic content book'),
-      Quote.find(textFilter)
+      Quote.find({ ...baseFilter, $or: [{ text: rx }, { reaction: rx }] })
         .populate('book', 'title')
         .select('text book'),
-      Character.find(textFilter)
+      Character.find({ ...baseFilter, $or: [{ name: rx }, { traits: rx }] })
         .populate('book', 'title')
         .select('name role book'),
     ]);

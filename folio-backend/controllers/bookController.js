@@ -6,6 +6,9 @@ import ProgressLog from '../models/ProgressLog.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// Escape regex metacharacters so user input is matched literally.
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const findOwnedBook = async (req, res) => {
   const book = await Book.findById(req.params.bookId);
   if (!book) {
@@ -28,7 +31,7 @@ export const getBooks = async (req, res, next) => {
     const filter = { user: req.user._id };
     if (status) filter.status = status;
     if (genre)  filter.genre  = genre;
-    if (search) filter.title  = { $regex: search, $options: 'i' };
+    if (search) filter.title  = { $regex: escapeRegExp(search), $options: 'i' };
 
     const sortOption = sort
       ? { [sort.replace(/^-/, '')]: sort.startsWith('-') ? -1 : 1 }
